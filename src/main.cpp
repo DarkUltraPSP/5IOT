@@ -13,10 +13,19 @@
 #include <WiFi.h>
 #include <Adafruit_AHTX0.h>
 #include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+#define OLED_RESET -1
+
 // REPLACE WITH YOUR RECEIVER MAC Address
-uint8_t broadcastAddress[] = {0xEC, 0xDA, 0x3B, 0xBF, 0x0A, 0x7C};
+uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+// uint8_t broadcastAddress[] = {0xEC, 0xDA, 0x3B, 0xBF, 0x0A, 0x7C};
 
 Adafruit_AHTX0 aht;
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Structure example to send data
 // Must match the receiver structure
@@ -29,6 +38,29 @@ typedef struct struct_message {
 struct_message_t myData;
 
 esp_now_peer_info_t peerInfo;
+
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&myData, incomingData, sizeof(myData));
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  Serial.print("Temperature: ");
+  Serial.println(myData.temperature);
+  Serial.print("Humidity:");
+  Serial.println(myData.humidity);
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+
+  display.print("Temp: ");
+  display.print(myData.temperature);
+  display.println(" C");
+
+  display.print("Humidity: ");
+  display.print(myData.humidity);
+  display.println("% rH");
+
+  display.display();
+}
 
 // callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -59,6 +91,18 @@ void setup() {
   }
   Serial.println("AHT10 found");
 
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+  {
+    Serial.println("SSD1306 allocation failed");
+    for (;;)
+      ;
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.display();
 
   // Once ESPNow is successfully Init, we will register for Send CB to
   // get the status of Transmitted packet
@@ -74,6 +118,8 @@ void setup() {
     Serial.println("Failed to add peer");
     return;
   }
+
+  esp_now_register_recv_cb(OnDataRecv);
 }
  
 void loop() {
@@ -84,20 +130,21 @@ void loop() {
   myData.temperature = temp.temperature;
   myData.humidity = humidity.relative_humidity;
 
-  Serial.print("Temperature: ");
-  Serial.print(myData.temperature);
-  Serial.print(" °C");
-  Serial.print("\tHumidity: ");
-  Serial.println(myData.humidity);
+  // Serial.print("Temperature: ");
+  // Serial.print(myData.temperature);
+  // Serial.print(" °C");
+  // Serial.print("\tHumidity: ");
+  // Serial.println(myData.humidity);
   
   // Send message via ESP-NOW
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+  // esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
    
-  if (result == ESP_OK) {
-    Serial.println("Sent with success");
-  }
-  else {
-    Serial.println("Error sending the data");
-  }
-  delay(5000);
+  // if (result == ESP_OK) {
+  //   Serial.println("Sent with success");
+  // }
+  // else {
+  //   Serial.println("Error sending the data");
+  // }
+
+  delay(1000);
 }
